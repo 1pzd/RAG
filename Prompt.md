@@ -3,34 +3,80 @@
 
 【技术栈要求】
 Python 3.10+, FastAPI (后端), Streamlit (前端), ChromaDB/Qdrant (向量库), LangChain/LlamaIndex (RAG编排), Pydantic v2 (配置校验)。
+大模型本地部署: vLLM/TGI (推理服务), Transformers, PEFT (LoRA微调), DeepSpeed (分布式训练)。
 
 【你需要完成的工作】
-1. 生成清晰的、前后端分离的生产级项目目录结构树（包含 core, api, services, frontend, evaluation 等目录）。
-2. 编写 `requirements.txt` 或 `pyproject.toml`，包含上述技术栈及异步开发所需的依赖（如 uvicorn, loguru, python-multipart）。
-3. 编写 `app/core/config.py`：使用 `pydantic-settings` 统一管理环境变量（如 LLM_API_KEY, BASE_URL, DB_PATH, LOG_LEVEL）。
+1. 生成清晰的、前后端分离的生产级项目目录结构树（包含 core, api, services, frontend, evaluation, training 等目录）。
+2. 编写 `requirements.txt` 或 `pyproject.toml`，包含上述技术栈及异步开发所需的依赖（如 uvicorn, loguru, python-multipart, transformers, peft, vllm）。
+3. 编写 `app/core/config.py`：使用 `pydantic-settings` 统一管理环境变量（如 MODEL_PATH, LORA_PATH, DB_PATH, LOG_LEVEL, TRAINING_CONFIG 等）。
 4. 编写 `app/core/logger.py`：配置 `loguru`，实现规范的日志输出，方便后续调试。
 
 请给出完整、可运行的代码，并遵循代码规范，加入类型提示（Type Hints）。
 
 
 ==================== 阶段二：多模态布局感知与语义切分 ====================
-你是一个精通 RAG 知识工程的首席数据科学家。请为我们的物联网知识问答系统编写“数据层”的工业级入库 Pipeline。
+你是一个精通 RAG 知识工程的首席数据科学家。请为我们编写"数据层"的工业级入库 Pipeline。
 
 【SOTA 技术技术要求】
 1. 布局感知解析（Layout-Aware Parsing）：编写 `app/services/parser.py`，使用 `pdfplumber` 或 `unstructured` 库。必须能够识别 PDF 中的【表格（Table）】和【图片说明（Caption）】。表格数据必须单独提取并转化为 Markdown 格式，严禁将其断开或错乱切分。
 2. 语义切分（Semantic Chunking）：放弃传统的固定滑动窗口切分。请实现基于 Embedding 语义突变检测的切分算法——计算相邻句子的向量相似度，当相似度低于动态阈值时才进行切分，确保每一个 Chunk 在语义上是完整、独立的物联网知识点。
 3. 层次化多向量管理（Parent-Child / Multi-Vector Retrieval）：为大 Chunk（Parent）生成多个小摘要或关键词（Child）。向量库只索引 Child 向量，但检索命中后，实际返回给大模型的是完整的 Parent 块，以此兼顾【检索的高精准度】与【回答的丰富上下文】。
-4. 元数据增强（Metadata Enrichment）：使用正则或轻量LLM自动为每个 Chunk 提取并注入以下元数据：`{"device_series": "xxx", "firmware_version": "xxx", "error_code": "xxx", "chunk_type": "table/text/faq"}`。
+4. 元数据增强（Metadata Enrichment）：使用正则或轻量推理自动为每个 Chunk 提取并注入以下元数据：`{"device_series": "xxx", "firmware_version": "xxx", "error_code": "xxx", "chunk_type": "table/text/faq"}`。
 
 【交付要求】
 请使用 Python 异步开发（async/await），利用 ChromaDB 或 Qdrant 作为后端，给出完整、健壮、包含完善异常处理（Try-Except）的 `document_processor.py` 和 `vector_store.py` 代码。
 
 
-==================== 阶段三：自适应查询重写与自注意力混合重排 ====================
+==================== 阶段三：领域大模型微调训练 ====================
+你现在是大模型微调专家。请为构建一个基于开源大模型的领域微调训练流水线。
+
+【SOTA 技术技术要求】
+1. 基座模型选型（Base Model Selection）：
+   - 推荐模型：Qwen2.5-7B-Instruct / Qwen2.5-14B-Instruct / DeepSeek-R1-Distill-Qwen-7B
+   - 模型下载与本地化：编写 `scripts/download_model.py`，支持从 HuggingFace / ModelScope 下载模型到本地 `models/` 目录
+2. 训练数据构造（Training Data Pipeline）：
+   - 编写 `training/data_builder.py`，将知识库 Chunk 转换为微调训练格式（Alpaca/ShareGPT 格式）
+   - 自动生成 IoT 领域的指令微调数据：问答对、故障排查对话、技术参数查询等
+   - 数据格式：`{"instruction": "...", "input": "...", "output": "..."}`
+3. LoRA 高效微调（Parameter-Efficient Fine-Tuning）：
+   - 编写 `training/finetune.py`，使用 PEFT 库实现 LoRA 微调
+   - 训练配置：rank=16, alpha=32, target_modules=["q_proj", "v_proj"], dropout=0.05
+   - 支持 DeepSpeed ZeRO-2 多卡训练加速
+   - 训练过程日志与 Checkpoint 保存
+4. 模型合并与导出（Model Merging）：
+   - 编写 `training/merge_model.py`，将训练好的 LoRA 权重与基座模型合并
+   - 导出为 vLLM/TGI 可直接加载的格式
+
+【交付要求】
+编写完整的训练流水线代码。支持单卡和多卡训练，包含详细的训练参数配置说明。训练数据格式文档和示例数据。
+
+
+==================== 阶段四：本地模型推理部署 ====================
+你现在是模型部署与推理优化专家。请构建高性能的本地模型推理服务。
+
+【SOTA 技术技术要求】
+1. vLLM 高性能推理（High-Performance Inference）：
+   - 编写 `app/services/model_server.py`，使用 vLLM 部署微调后的模型
+   - 支持 PagedAttention、Continuous Batching、Tensor Parallelism
+   - API 兼容 OpenAI 格式（/v1/chat/completions）
+2. 模型加载与管理（Model Lifecycle）：
+   - 编写 `app/services/model_manager.py`，支持模型热加载、多模型切换
+   - 支持加载基座模型或微调后的 LoRA 模型
+   - 模型健康检查与自动重启
+3. 推理优化（Inference Optimization）：
+   - 支持 INT8/INT4 量化推理（GPTQ/AWQ）
+   - KV Cache 优化与内存管理
+   - 批处理请求队列
+
+【交付要求】
+编写模型部署与推理服务代码。提供 Docker Compose 一键部署方案，包含模型服务的健康检查和监控端点。
+
+
+==================== 阶段五：自适应查询重写与自注意力混合重排 ====================
 你现在是搜索引擎与检索算法专家。针对物联网设备型号复杂、用户提问模糊的痛点，请编写处于行业前沿的双路混合检索与多级重排模块。
 
 【SOTA 技术技术要求】
-1. 智能查询重写与假想文档（HyDE）：用户输入的 Prompt 往往不标准（例如：“指纹锁死锁了”）。在检索前，系统先调用大模型生成一个“假想的、标准的官方排障说明段落”，然后用这个【假想文档的向量】去数据库里检索，彻底解决用户口语化表达与官方技术文档之间的语意鸿沟。
+1. 智能查询重写与假想文档（HyDE）：用户输入的 Prompt 往往不标准（例如："指纹锁死锁了"）。在检索前，系统先调用本地微调模型生成一个"假想的、标准的官方排障说明段落"，然后用这个【假想文档的向量】去数据库里检索，彻底解决用户口语化表达与官方技术文档之间的语意鸿沟。
 2. 双路混合检索（Hybrid Search）+ RRF 融合：
    - 稠密向量路：使用 `bge-large-zh-v1.5`，支持基于元数据（Metadata）的硬过滤，防止跨型号误检索。
    - 稀疏文本路：使用高级 `BM25Okapi`，对硬件错误码（如 0x0F, E-8）进行 100% 精确匹配。
@@ -42,35 +88,38 @@ Python 3.10+, FastAPI (后端), Streamlit (前端), ChromaDB/Qdrant (向量库),
 编写 `app/services/retriever.py`。模块必须完全模块化，各子策略（HyDE, BM25, Reranker）支持在配置文件中一键开启或关闭（Plug-and-Play），代码中需写明详尽的算分推导注释。
 
 
-==================== 阶段四：Self-RAG 自检反思流与确定性流式生成 ====================
-你现在是智能体（Agentic）系统架构师。请为我们构建一个具备“自我反思与纠错能力（Self-RAG）”的大模型异步流式生成引擎。
+==================== 阶段六：Self-RAG 自检反思流与确定性流式生成 ====================
+你现在是智能体（Agentic）系统架构师。请为我们构建一个具备"自我反思与纠错能力（Self-RAG）"的本地模型异步流式生成引擎。
 
 【SOTA 技术技术要求】
-1. Self-RAG 反思工作流（Self-Correction Loop）：大模型在生成最终答案前，需要执行两步内部状态检查（Structured Outputs / Function Calling）：
+1. Self-RAG 反思工作流（Self-Correction Loop）：本地微调模型在生成最终答案前，需要执行两步内部状态检查（Structured Outputs / Function Calling）：
    - 检查一（Context Relevance）：评估检索出来的上下文是否真的包含用户问题的答案。如果无关度高于 80%，直接中断，触发兜底提示词（如提示人工客服），拒绝瞎编。
    - 检查二（Grounding Check）：生成答案后，比对答案中的技术参数（如电压、指令码）是否完全来源于上下文。若发现幻觉，自动打回重写。
 2. 动态严谨提示词（Robust Engineering）：设计企业级的系统 Prompt，包含 3 个物联网领域的几发学习示例（Few-Shot Case），严格锁死大模型的自由发挥度（Temperature 设为 0.0）。
-3. 工业级流式输出（Async Streaming）：基于 FastAPI 的 `StreamingResponse`，对接大模型（如 DeepSeek-R1 或 Qwen2.5-72B-Instruct）。不仅要流式输出最终答案，还要可选地流式输出【思考过程（Thinking Process）】和【检索到的参考文献索引（Citations）】。
+3. 工业级流式输出（Async Streaming）：基于 FastAPI 的 `StreamingResponse`，对接本地 vLLM 推理服务。不仅要流式输出最终答案，还要可选地流式输出【思考过程（Thinking Process）】和【检索到的参考文献索引（Citations）】。
 
 【交付要求】
 编写 `app/api/chat.py` 和 `app/services/llm_agent.py`。代码必须具备极高的并发处理能力，利用 Python 的异步生成器（Async Generator）实现，确保流式吞吐丝滑不卡顿。
 
 
-==================== 阶段五：全栈级可观测性追踪面板与 Ragas 自动化评估 ====================
+==================== 阶段七：全栈级可观测性追踪面板与 Ragas 自动化评估 ====================
 你现在是前端高级专家与全栈链路监控专家。请完成项目的收官作：一个极其炫酷、具备现代科技感、且集成了可观测性（Observability）和量化评估的 Streamlit 应用。
 
 【SOTA 技术技术要求】
 1. 现代科技感 UI 交互（Streamlit）：
    - **双栏设计：** 左边栏用于物联网设备选型（带设备图标、在线状态模拟）及固件版本切换；支持管理员直接拖拽上传新说明书，上传后带进度条显示语义切分与入库进度。
    - **流式对话框：** 完美支持 Markdown、代码块高亮、表格渲染。
-   - **【SOTA 亮点】溯源标签页（Source Citation Tabs）：** 每一个回答下方，用 Tab 组件清晰展示“AI 是参考了哪几页说明书才得出这个结论的”，点击可查看原始文本块和重排得分（Score）。
+   - **【SOTA 亮点】溯源标签页（Source Citation Tabs）：** 每一个回答下方，用 Tab 组件清晰展示"AI 是参考了哪几页说明书才得出这个结论的"，点击可查看原始文本块和重排得分（Score）。
 2. 全链路追踪可观测性（Observability Trace Viewer）：
    - 在前端页面开辟一个【开发者观测面板】，利用 `OpenInference` 或自定义 Trace 机制，将每一次问答的后台耗时和细节可视化：`用户问题 -> HyDE重写结果 -> 向量检索耗时 -> Reranker得分 -> LLM首字延迟(TTFT)`。
 3. Ragas 自动化量化评估看版：
    - 编写 `app/evaluation/metrics.py`。内置 4 个行业标准 RAG 评估指标：`疑问忠实度 (Faithfulness)`、`答案相关性 (Answer Relevance)`、`上下文召回率 (Context Recall)`。
    - 运行时一键启动压测，在前端直接用漂亮的 ECharts 雷达图或柱状图，实时展示当前知识库配置下的系统综合得分（如：系统综合无幻觉率达 96.4%）。
+4. 模型训练管理面板（Training Dashboard）：
+   - 展示微调训练的损失曲线、学习率变化、评估指标
+   - 支持一键启动/停止训练任务
+   - 模型版本管理与 A/B 测试对比
 
 【交付要求】
 提供完整、美观的 `frontend/app.py` 代码。样式要求极简、现代化，善用 Streamlit 的 `st.tabs`, `st.expander` 和数据图表组件，让非技术背景的老师也能一眼看出该系统的技术壁垒。
-
 

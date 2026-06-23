@@ -17,10 +17,10 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     LLM_API_KEY: str = ""
-    LLM_BASE_URL: str = "https://api.openai.com/v1"
-    LLM_MODEL_NAME: str = "gpt-4o-mini"
-    LLM_TEMPERATURE: float = 0.1
-    LLM_MAX_TOKENS: int = 2048
+    LLM_BASE_URL: str = "https://api.deepseek.com"
+    LLM_MODEL_NAME: str = "deepseek-v4-pro"
+    LLM_TEMPERATURE: float = 1.0
+    LLM_MAX_TOKENS: int = 4096
 
     EMBEDDING_MODEL_NAME: str = "text-embedding-3-small"
     EMBEDDING_DIMENSION: int = 1536
